@@ -2,9 +2,12 @@
 from django import forms
 from django.db import models
 from django.shortcuts import render
+from django.core.cache import cache
+from django.core.cache.utils import make_template_fragment_key
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 
 from modelcluster.contrib.taggit import ClusterTaggableManager
+from taggit.models import TaggedItemBase
 
 from wagtail.core.models import Page, Orderable
 from modelcluster.fields import ParentalKey, ParentalManyToManyField
@@ -110,6 +113,9 @@ class BlogListingPage(RoutablePageMixin, Page):
     """Listing page lists all the Blog Detail Pages."""
 
     template = "blog/blog_listing_page.html"
+    ajax_template = "blog/blog_listing_page_ajax.html"
+    max_count = 1
+    subpage_types = ['blog.VideoBlogPage', 'blog.ArticleBlogPage']
 
     custom_title = models.CharField(
         max_length=100,
@@ -130,6 +136,10 @@ class BlogListingPage(RoutablePageMixin, Page):
         all_posts = BlogDetailPage.objects.live().public().order_by('-first_published_at')
         
         #context["categories"] = BlogCategory.objects.all()
+
+        if request.GET.get('tag', None):
+            tags = request.GET.get('tag')
+            all_posts = all_posts.filter(tags__slug__in=[tags])
         
         # Paginate all posts by 2 per page
         paginator = Paginator(all_posts, 2)
@@ -194,12 +204,23 @@ class BlogListingPage(RoutablePageMixin, Page):
         )
         return sitemap
 
+
+    
+class BlogPageTag(TaggedItemBase):
+    content_object = ParentalKey(
+        'BlogDetailPage',
+        related_name='tagged_items',
+        on_delete=models.CASCADE,
+    )
+
+
+
 class BlogDetailPage(Page):
     """Parental blog detail page."""
 
     subpage_types = []
     parent_page_types = ['blog.BlogListingPage']
-    
+    tags = ClusterTaggableManager(through=BlogPageTag, blank=True)
     custom_title = models.CharField(
         max_length=100,
         blank=False,
@@ -230,7 +251,7 @@ class BlogDetailPage(Page):
 
     content_panels = Page.content_panels + [
         FieldPanel("custom_title"),
-        
+        FieldPanel("tags"),
         ImageChooserPanel("banner_image"),
         MultiFieldPanel(
             [
@@ -246,6 +267,16 @@ class BlogDetailPage(Page):
         ),
         StreamFieldPanel("content"),
     ]
+
+    def save(self, *args, **kwargs):
+        """Create a template fragment key.
+        Then delete the key."""
+        key = make_template_fragment_key(
+            "blog_post_preview",
+            [self.id]
+        )
+        cache.delete(key)
+        return super().save(*args, **kwargs)
 
 
  # First subclassed blog post page
@@ -270,7 +301,7 @@ class ArticleBlogPage(BlogDetailPage):
     content_panels = Page.content_panels + [
         FieldPanel("custom_title"),
         FieldPanel("subtitle"),
-        
+        FieldPanel("tags"),
         ImageChooserPanel("banner_image"),
         ImageChooserPanel("intro_image"),
         MultiFieldPanel(
@@ -299,7 +330,7 @@ class VideoBlogPage(BlogDetailPage):
 
     content_panels = Page.content_panels + [
         FieldPanel("custom_title"),
-        
+        FieldPanel("tags"),
         ImageChooserPanel("banner_image"),
         MultiFieldPanel(
             [

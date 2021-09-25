@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'subscribers',
     'blog',
     'menus',
+    'contact',
 
     'wagtail.contrib.forms',
     'wagtail.contrib.redirects',
@@ -59,6 +60,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
+
+    'captcha',
+    'wagtailcaptcha',
 ]
 
 MIDDLEWARE = [
@@ -174,3 +178,4 @@ WAGTAIL_SITE_NAME = "mysite"
 BASE_URL = 'http://example.com'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField' 
+
